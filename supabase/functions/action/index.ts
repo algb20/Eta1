@@ -48,18 +48,21 @@ Deno.serve(async (req) => {
       }
 
       case "submit_project": {
-        const name = String(body.name ?? "").trim()
+        const name = String(body.name ?? "").trim().slice(0, 200)
         if (!name) return json({ error: "Project name is required" }, 400)
+        const STAGES = ["Research", "Pilot Testing", "Field Testing", "Production"]
+        const stage = STAGES.includes(body.stage) ? body.stage : "Research"
+        const cap = (v: unknown, n: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, n) : null)
         const { data, error } = await db.from("projects").insert({
           owner_id: me.id,
           author_name: me.username,
           author_avatar: me.avatar_url,
           name,
-          name_ar: body.nameAr ?? null,
-          description: body.description ?? null,
-          description_ar: body.descriptionAr ?? null,
-          field: body.field ?? "Clean Energy",
-          stage: body.stage ?? "Research",
+          name_ar: cap(body.nameAr, 200),
+          description: cap(body.description, 2000),
+          description_ar: cap(body.descriptionAr, 2000),
+          field: cap(body.field, 60) ?? "Clean Energy",
+          stage,
           classification: "Undocumented",
           status: "pending",
           impact: 50,
@@ -67,7 +70,8 @@ Deno.serve(async (req) => {
           carbon: Math.abs(Number(body.carbon ?? 0)) || 0,
           water_saved: Math.abs(Number(body.waterSaved ?? 0)) || 0,
           energy_generated: Math.abs(Number(body.energyGenerated ?? 0)) || 0,
-          video_url: body.videoUrl ?? null,
+          video_url: typeof body.videoUrl === "string" && /^https:\/\//i.test(body.videoUrl)
+            ? body.videoUrl.slice(0, 500) : null,
         }).select("id").single()
         if (error) throw error
         await db.from("activity_logs").insert({

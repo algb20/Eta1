@@ -114,3 +114,26 @@
     animation: shimmer 2s infinite;
   }
 }
+
+/* --- Google Translate: hide its injected chrome, keep our own UI --------- */
+.goog-te-banner-frame,
+.goog-te-gadget-icon,
+#goog-gt-tt,
+.goog-tooltip,
+.goog-tooltip:hover,
+.goog-te-balloon-frame {
+  display: none !important;
+}
+.goog-text-highlight {
+  background: none !important;
+  box-shadow: none !important;
+}
+body {
+  top: 0 !important;
+  position: static !important;
+}
+/* Google wraps translated text in <font>; keep it inheriting our styles. */
+font {
+  vertical-align: inherit;
+}
+

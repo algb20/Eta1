@@ -24,8 +24,10 @@ Built with **Next.js 15 (static export) + Tailwind / shadcn-ui**, backed by
 | View counter | ✅ `increment_project_view` RPC |
 | Admin dashboard (founder only) | ✅ real stats, approve/classify, feature toggles, verify users |
 | Immutable analytics log | ✅ `analytics_events` (anonymous insert, admin read) |
-| Bilingual EN/AR + RTL | ✅ `lib/i18n.ts` |
-| Founder bootstrap (first sign-in) | ✅ `pi-login` |
+| Bilingual EN/AR + RTL | ✅ `lib/i18n.ts` (hand-written) |
+| 20+ more languages | ✅ Google Translate engine (`components/translate-engine.tsx`) |
+| Hardware back-button handling | ✅ closes overlays / returns home instead of exiting the app |
+| Founder bootstrap (first sign-in) | ✅ `pi-login` (pin with `ETA_FOUNDER_PI_UID`) |
 
 Until a Supabase project is connected, the app gracefully falls back to six
 bundled demo projects so the interface is never empty.

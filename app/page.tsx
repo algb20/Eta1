@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Search, Home, Leaf, Settings, Filter, TrendingUp, Shield, FlaskConical, Video, FileText, Users, BarChart3, Languages, Lock, Upload, Eye, ArrowUpDown, PlayCircle, Heart, Share2, HelpCircle, Activity, LogOut } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Search, Home, Leaf, Settings, Filter, TrendingUp, Shield, FlaskConical, Video, FileText, Users, BarChart3, Lock, Upload, Eye, ArrowUpDown, PlayCircle, Heart, Share2, HelpCircle, Activity, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -21,8 +21,11 @@ import { TeamWorkspace } from '@/components/team-workspace'
 import { OnboardingHelp } from '@/components/onboarding-help'
 import { MarketingIntelligence } from '@/components/marketing-intelligence'
 import { PiProvider, usePi } from '@/components/pi-provider'
+import { LanguageSwitcher } from '@/components/language-switcher'
+import { TranslateEngineMount, storedLang } from '@/components/translate-engine'
 import { FIELDS } from '@/lib/config'
-import { dir, t, type Lang } from '@/lib/i18n'
+import { t, type Lang } from '@/lib/i18n'
+import { dictLangFor, isRtl } from '@/lib/languages'
 import {
   getProjects, getPlatformStats, logEvent, incrementView, toggleLike, toggleFollow,
   type Project, type PlatformStats,
@@ -44,11 +47,15 @@ function EtaApp() {
   const { toast } = useToast()
   const pi = usePi()
 
+  const [currentLang, setCurrentLang] = useState<string>('en')
+  const language: Lang = dictLangFor(currentLang)
+  const direction: 'rtl' | 'ltr' = isRtl(currentLang) ? 'rtl' : 'ltr'
+
   const [activeTab, setActiveTab] = useState('discover')
   const [searchQuery, setSearchQuery] = useState('')
   const [filterField, setFilterField] = useState('all')
   const [sortBy, setSortBy] = useState<'impact' | 'sustainability' | 'reliability'>('impact')
-  const [language, setLanguage] = useState<Lang>('en')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [showAdmin, setShowAdmin] = useState(false)
   const [showTeamWorkspace, setShowTeamWorkspace] = useState(false)
   const [showUpload, setShowUpload] = useState(false)
@@ -62,18 +69,18 @@ function EtaApp() {
 
   const tr = useCallback((k: Parameters<typeof t>[1]) => t(language, k), [language])
 
-  // First-run onboarding.
+  // Restore persisted language + first-run onboarding.
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (!localStorage.getItem('eta_onboarded')) setShowOnboarding(true)
+    setCurrentLang(storedLang())
+    if (typeof window !== 'undefined' && !localStorage.getItem('eta_onboarded')) setShowOnboarding(true)
   }, [])
 
-  // Language direction.
+  // Apply language direction to the document.
   useEffect(() => {
     if (typeof document === 'undefined') return
-    document.documentElement.lang = language
-    document.documentElement.dir = dir(language)
-  }, [language])
+    document.documentElement.lang = currentLang
+    document.documentElement.dir = direction
+  }, [currentLang, direction])
 
   const loadProjects = useCallback(async () => {
     setLoadingProjects(true)
@@ -87,6 +94,43 @@ function EtaApp() {
     loadProjects()
     logEvent('page_view', { path: '/' })
   }, [loadProjects])
+
+  // -------- Hardware / browser BACK button handling -----------------------
+  // Prevents the Pi Browser back button from exiting the app: it closes any
+  // open overlay, then returns to the home tab, then (double-press) exits.
+  const backState = useRef({ overlayOpen: false, closeAll: () => {}, tab: 'discover' })
+  backState.current = {
+    overlayOpen:
+      selectedProject !== null || showAdmin || showUpload || showTeamWorkspace ||
+      showMarketing || showOnboarding || filtersOpen,
+    closeAll: () => {
+      setSelectedProject(null); setShowAdmin(false); setShowUpload(false)
+      setShowTeamWorkspace(false); setShowMarketing(false); setShowOnboarding(false)
+      setFiltersOpen(false)
+    },
+    tab: activeTab,
+  }
+  const lastBackPress = useRef(0)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.history.pushState({ eta: true }, '')
+    const onPop = () => {
+      const s = backState.current
+      if (s.overlayOpen) { s.closeAll(); window.history.pushState({ eta: true }, ''); return }
+      if (s.tab !== 'discover') { setActiveTab('discover'); window.history.pushState({ eta: true }, ''); return }
+      const now = Date.now()
+      if (now - lastBackPress.current < 2000) {
+        window.history.back() // allow the platform to leave the app
+      } else {
+        lastBackPress.current = now
+        toast({ title: t(dictLangFor(storedLang()), 'pressBackAgain') })
+        window.history.pushState({ eta: true }, '')
+      }
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const filteredProjects = useMemo(() => {
     const q = searchQuery.toLowerCase()
@@ -111,35 +155,18 @@ function EtaApp() {
       })
   }, [projects, searchQuery, filterField, sortBy])
 
-  const followingProjects = useMemo(
-    () => projects.filter((p) => pi.myFollows.has(p.id)),
-    [projects, pi.myFollows],
-  )
+  const followingProjects = useMemo(() => projects.filter((p) => pi.myFollows.has(p.id)), [projects, pi.myFollows])
+  const trendingProjects = useMemo(() => [...projects].sort((a, b) => b.likes - a.likes).slice(0, 5), [projects])
 
-  const trendingProjects = useMemo(
-    () => [...projects].sort((a, b) => b.likes - a.likes).slice(0, 5),
-    [projects],
-  )
+  const handleConnect = useCallback(async () => { await pi.signIn() }, [pi])
 
-  const handleConnect = useCallback(async () => {
-    await pi.signIn()
-  }, [pi])
-
+  useEffect(() => { if (pi.error) toast({ title: pi.error, variant: 'destructive' }) }, [pi.error, toast])
   useEffect(() => {
-    if (pi.error) toast({ title: pi.error, variant: 'destructive' })
-  }, [pi.error, toast])
-
-  useEffect(() => {
-    if (pi.isAuthenticated && pi.profile) {
-      logEvent('pi_authentication', { status: 'connected' }, pi.profile.pi_uid)
-    }
+    if (pi.isAuthenticated && pi.profile) logEvent('pi_authentication', { status: 'connected' }, pi.profile.pi_uid)
   }, [pi.isAuthenticated, pi.profile])
 
   const requireAuth = useCallback(() => {
-    if (!pi.isAuthenticated) {
-      toast({ title: tr('signInRequired') })
-      return false
-    }
+    if (!pi.isAuthenticated) { toast({ title: tr('signInRequired') }); return false }
     return true
   }, [pi.isAuthenticated, toast, tr])
 
@@ -199,7 +226,7 @@ function EtaApp() {
   const totalCarbon = stats?.co2Saved ?? 0
 
   return (
-    <div className="min-h-screen bg-background pb-24" dir={dir(language)}>
+    <div className="min-h-screen bg-background pb-24" dir={direction}>
       {/* Auth banner */}
       {!pi.isAuthenticated && (
         <Alert className="m-4 bg-gradient-to-r from-primary/10 via-accent/10 to-primary/10 border-primary/30 shadow-sm">
@@ -247,15 +274,14 @@ function EtaApp() {
             <Button variant="ghost" size="icon" onClick={() => setShowOnboarding(true)} className="bg-transparent">
               <HelpCircle className="h-5 w-5" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')} className="bg-transparent">
-              <Languages className="h-5 w-5" />
-            </Button>
 
-            <Sheet>
+            <LanguageSwitcher current={currentLang} />
+
+            <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="bg-transparent"><Filter className="h-5 w-5" /></Button>
               </SheetTrigger>
-              <SheetContent side={language === 'ar' ? 'left' : 'right'}>
+              <SheetContent side={direction === 'rtl' ? 'left' : 'right'}>
                 <SheetHeader>
                   <SheetTitle>{tr('filtersSorting')}</SheetTitle>
                   <SheetDescription>{tr('advancedOptions')}</SheetDescription>
@@ -285,15 +311,15 @@ function EtaApp() {
                   <div className="pt-4 border-t border-border/50">
                     <p className="text-xs text-muted-foreground mb-2">{tr('quickActions')}</p>
                     <div className="space-y-2">
-                      <Button variant="outline" size="sm" className="w-full justify-start bg-transparent" onClick={() => setShowUpload(true)}>
+                      <Button variant="outline" size="sm" className="w-full justify-start bg-transparent" onClick={() => { setFiltersOpen(false); setShowUpload(true) }}>
                         <Upload className="h-3.5 w-3.5 mr-2" />{tr('submitProject')}
                       </Button>
                       {pi.isAdmin && (
                         <>
-                          <Button variant="outline" size="sm" className="w-full justify-start bg-transparent" onClick={() => setShowAdmin(true)}>
+                          <Button variant="outline" size="sm" className="w-full justify-start bg-transparent" onClick={() => { setFiltersOpen(false); setShowAdmin(true) }}>
                             <Shield className="h-3.5 w-3.5 mr-2" />{tr('adminDashboard')}
                           </Button>
-                          <Button variant="outline" size="sm" className="w-full justify-start bg-transparent" onClick={() => setShowMarketing(true)}>
+                          <Button variant="outline" size="sm" className="w-full justify-start bg-transparent" onClick={() => { setFiltersOpen(false); setShowMarketing(true) }}>
                             <TrendingUp className="h-3.5 w-3.5 mr-2" />{tr('marketingAI')}
                           </Button>
                         </>
@@ -333,7 +359,6 @@ function EtaApp() {
 
       {/* Main */}
       <main className="px-4 py-4 space-y-4">
-        {/* Stats */}
         <div className="grid grid-cols-2 gap-3">
           <StatCard icon={<Eye className="h-3.5 w-3.5 text-accent" />} label={tr('totalViews')} value={(stats?.totalViews ?? 0).toLocaleString()} tone="accent" />
           <StatCard icon={<Leaf className="h-3.5 w-3.5 text-green-500" />} label={tr('co2Saved')} value={totalCarbon.toLocaleString()} badge={tr('kgReduced')} tone="green" />
@@ -341,7 +366,6 @@ function EtaApp() {
           <StatCard icon={<Shield className="h-3.5 w-3.5 text-blue-500" />} label={tr('piUsers')} value={(stats?.piUsers ?? 0).toLocaleString()} badge={tr('verified')} tone="blue" />
         </div>
 
-        {/* Platform card */}
         <Card className="bg-card/50 border-dashed">
           <CardContent className="pt-4">
             <div className="space-y-4">
@@ -380,7 +404,6 @@ function EtaApp() {
           </CardContent>
         </Card>
 
-        {/* Sort indicator */}
         <Card className="bg-card/50 border-dashed">
           <CardContent className="pt-3 pb-3">
             <div className="flex items-center justify-between">
@@ -396,7 +419,6 @@ function EtaApp() {
           </CardContent>
         </Card>
 
-        {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="discover">{tr('discover')}</TabsTrigger>
@@ -411,19 +433,10 @@ function EtaApp() {
               <div className="text-center py-12"><p className="text-muted-foreground">{tr('noProjects')}</p></div>
             ) : (
               filteredProjects.map((project) => (
-                <ProjectCard
-                  key={project.id}
-                  project={project}
-                  displayName={name(project)}
-                  displayDesc={desc(project)}
-                  liked={pi.myLikes.has(project.id)}
-                  following={pi.myFollows.has(project.id)}
-                  onLike={() => handleLike(project)}
-                  onFollow={() => handleFollow(project)}
-                  onShare={() => handleShare(project)}
-                  onWatch={() => openVideo(project)}
-                  tr={tr}
-                />
+                <ProjectCard key={project.id} project={project} displayName={name(project)} displayDesc={desc(project)}
+                  liked={pi.myLikes.has(project.id)} following={pi.myFollows.has(project.id)}
+                  onLike={() => handleLike(project)} onFollow={() => handleFollow(project)}
+                  onShare={() => handleShare(project)} onWatch={() => openVideo(project)} tr={tr} />
               ))
             )}
           </TabsContent>
@@ -460,19 +473,10 @@ function EtaApp() {
               <div className="text-center py-12"><p className="text-muted-foreground">{tr('followingEmpty')}</p></div>
             ) : (
               followingProjects.map((project) => (
-                <ProjectCard
-                  key={project.id}
-                  project={project}
-                  displayName={name(project)}
-                  displayDesc={desc(project)}
-                  liked={pi.myLikes.has(project.id)}
-                  following={pi.myFollows.has(project.id)}
-                  onLike={() => handleLike(project)}
-                  onFollow={() => handleFollow(project)}
-                  onShare={() => handleShare(project)}
-                  onWatch={() => openVideo(project)}
-                  tr={tr}
-                />
+                <ProjectCard key={project.id} project={project} displayName={name(project)} displayDesc={desc(project)}
+                  liked={pi.myLikes.has(project.id)} following={pi.myFollows.has(project.id)}
+                  onLike={() => handleLike(project)} onFollow={() => handleFollow(project)}
+                  onShare={() => handleShare(project)} onWatch={() => openVideo(project)} tr={tr} />
               ))
             )}
           </TabsContent>
@@ -531,8 +535,16 @@ function EtaApp() {
             <DialogDescription>{selectedProject ? name(selectedProject) : tr('watchInnovation')}</DialogDescription>
           </DialogHeader>
           <div className="aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center">
-            {selectedProject?.videoUrl ? (
-              <iframe src={selectedProject.videoUrl} className="w-full h-full" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowFullScreen title={selectedProject.name} />
+            {selectedProject?.videoUrl && /^https:\/\//i.test(selectedProject.videoUrl) ? (
+              <iframe
+                src={selectedProject.videoUrl}
+                className="w-full h-full"
+                sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
+                referrerPolicy="no-referrer"
+                allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title={selectedProject.name}
+              />
             ) : (
               <div className="text-center space-y-2 p-6">
                 <PlayCircle className="h-16 w-16 mx-auto text-accent" />
@@ -553,6 +565,7 @@ function EtaApp() {
         </div>
       </nav>
 
+      <TranslateEngineMount />
       <Toaster />
     </div>
   )

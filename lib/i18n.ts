@@ -109,6 +109,7 @@ export const dictionary = {
     submitSuccessDesc: "Your innovation is now pending founder review.",
     signInRequired: "Please sign in with Pi Network first.",
     nameRequired: "Please enter a project name.",
+    pressBackAgain: "Press back again to exit",
   },
   ar: {
     tagline: "مركز ابتكارات Pi",
@@ -205,6 +206,7 @@ export const dictionary = {
     submitSuccessDesc: "ابتكارك الآن بانتظار مراجعة المؤسّس.",
     signInRequired: "الرجاء تسجيل الدخول عبر شبكة Pi أولاً.",
     nameRequired: "الرجاء إدخال اسم المشروع.",
+    pressBackAgain: "اضغط رجوع مرة أخرى للخروج",
   },
 } as const
 
