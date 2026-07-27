@@ -19,6 +19,10 @@ export const PI_CONFIG = {
 
 const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/\/$/, "")
 
+// Sent as the gateway apikey when calling Edge Functions (required by the
+// Supabase gateway even when a function has JWT verification disabled).
+export const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ""
+
 // Supabase Edge Functions act as the authenticated write gateway. Each verifies
 // the caller's Pi access token server-side before touching the database.
 export const EDGE = {

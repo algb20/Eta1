@@ -7,7 +7,7 @@
 // data so the interface is never empty (useful for previews).
 
 import { supabase, isSupabaseConfigured } from "./supabase"
-import { EDGE } from "./config"
+import { EDGE, SUPABASE_ANON } from "./config"
 import type { Classification } from "./config"
 
 // ---------------------------------------------------------------------------
@@ -267,11 +267,12 @@ export async function incrementView(projectId: string) {
 
 async function callEdge(url: string, token: string, body: Record<string, any>) {
   if (!url) throw new Error("Backend is not configured yet.")
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Pi-Token": token },
-    body: JSON.stringify(body),
-  })
+  const headers: Record<string, string> = { "Content-Type": "application/json", "X-Pi-Token": token }
+  if (SUPABASE_ANON) {
+    headers["apikey"] = SUPABASE_ANON
+    headers["Authorization"] = `Bearer ${SUPABASE_ANON}`
+  }
+  const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) })
   const json = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(json?.error || `Request failed (${res.status})`)
   return json

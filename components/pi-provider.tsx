@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
-import { PI_CONFIG, EDGE } from "@/lib/config"
+import { PI_CONFIG, EDGE, SUPABASE_ANON } from "@/lib/config"
 import { getMyLikes, getMyFollows, type Profile, type PlatformSettings } from "@/lib/api"
 import { supabase } from "@/lib/supabase"
 
@@ -80,11 +80,12 @@ export function PiProvider({ children }: { children: React.ReactNode }) {
     if (!EDGE.login) {
       throw new Error("Backend is not configured yet.")
     }
-    const res = await fetch(EDGE.login, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Pi-Token": accessToken },
-      body: JSON.stringify({}),
-    })
+    const headers: Record<string, string> = { "Content-Type": "application/json", "X-Pi-Token": accessToken }
+    if (SUPABASE_ANON) {
+      headers["apikey"] = SUPABASE_ANON
+      headers["Authorization"] = `Bearer ${SUPABASE_ANON}`
+    }
+    const res = await fetch(EDGE.login, { method: "POST", headers, body: JSON.stringify({}) })
     const json = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(json?.error || "Login failed")
 
