@@ -17,6 +17,9 @@ Built with **Next.js 15 (static export) + Tailwind / shadcn-ui**, backed by
 | Area | Status |
 |------|--------|
 | Real Pi Network sign-in (verified server-side) | ✅ `pi-login` Edge Function |
+| Automatic sign-in on app open (inside Pi Browser) | ✅ `pi-provider` (client identity instantly, server-verified when the backend is connected) |
+| Working Settings panel (account, language, status) | ✅ `components/settings-dialog.tsx` |
+| Global Radar — live external discovery in the field | ✅ `lib/radar.ts` (Hacker News API, key-less, CORS) |
 | Projects loaded from the database | ✅ `projects` table + public RLS |
 | Submit a project (goes to founder review) | ✅ `action` Edge Function |
 | Likes & follows (per Pi account) | ✅ `action` Edge Function |

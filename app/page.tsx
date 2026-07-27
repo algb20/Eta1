@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Search, Home, Leaf, Settings, Filter, TrendingUp, Shield, FlaskConical, Video, FileText, Users, BarChart3, Lock, Upload, Eye, ArrowUpDown, PlayCircle, Heart, Share2, HelpCircle, Activity, LogOut } from 'lucide-react'
+import { Search, Home, Leaf, Settings, Filter, TrendingUp, Shield, FlaskConical, Video, FileText, Users, BarChart3, Lock, Upload, Eye, ArrowUpDown, PlayCircle, Heart, Share2, HelpCircle, Activity, LogOut, Globe } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -20,6 +20,8 @@ import { ProjectUpload } from '@/components/project-upload'
 import { TeamWorkspace } from '@/components/team-workspace'
 import { OnboardingHelp } from '@/components/onboarding-help'
 import { MarketingIntelligence } from '@/components/marketing-intelligence'
+import { RadarFeed } from '@/components/radar-feed'
+import { SettingsDialog } from '@/components/settings-dialog'
 import { PiProvider, usePi } from '@/components/pi-provider'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { TranslateEngineMount, storedLang } from '@/components/translate-engine'
@@ -62,6 +64,7 @@ function EtaApp() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showMarketing, setShowMarketing] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   const [projects, setProjects] = useState<Project[]>([])
   const [stats, setStats] = useState<PlatformStats | null>(null)
@@ -102,11 +105,11 @@ function EtaApp() {
   backState.current = {
     overlayOpen:
       selectedProject !== null || showAdmin || showUpload || showTeamWorkspace ||
-      showMarketing || showOnboarding || filtersOpen,
+      showMarketing || showOnboarding || filtersOpen || showSettings,
     closeAll: () => {
       setSelectedProject(null); setShowAdmin(false); setShowUpload(false)
       setShowTeamWorkspace(false); setShowMarketing(false); setShowOnboarding(false)
-      setFiltersOpen(false)
+      setFiltersOpen(false); setShowSettings(false)
     },
     tab: activeTab,
   }
@@ -335,7 +338,7 @@ function EtaApp() {
               </SheetContent>
             </Sheet>
 
-            <Button variant="ghost" size="icon" className="bg-transparent"><Settings className="h-5 w-5" /></Button>
+            <Button variant="ghost" size="icon" className="bg-transparent" onClick={() => setShowSettings(true)}><Settings className="h-5 w-5" /></Button>
           </div>
         </div>
 
@@ -420,10 +423,11 @@ function EtaApp() {
         </Card>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="discover">{tr('discover')}</TabsTrigger>
             <TabsTrigger value="trending">{tr('trending')}</TabsTrigger>
             <TabsTrigger value="following">{tr('following')}</TabsTrigger>
+            <TabsTrigger value="radar"><Globe className="h-3.5 w-3.5 mr-1" />{tr('radar')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="discover" className="mt-4 space-y-4">
@@ -479,6 +483,10 @@ function EtaApp() {
                   onShare={() => handleShare(project)} onWatch={() => openVideo(project)} tr={tr} />
               ))
             )}
+          </TabsContent>
+
+          <TabsContent value="radar" className="mt-4">
+            <RadarFeed language={language} />
           </TabsContent>
         </Tabs>
       </main>
@@ -564,6 +572,14 @@ function EtaApp() {
           <NavButton active={showUpload} icon={<Upload className="h-5 w-5" />} label={tr('upload')} onClick={() => setShowUpload(true)} />
         </div>
       </nav>
+
+      <SettingsDialog
+        open={showSettings}
+        onOpenChange={setShowSettings}
+        language={language}
+        currentLang={currentLang}
+        onOpenAdmin={() => { if (pi.isAdmin) setShowAdmin(true) }}
+      />
 
       <TranslateEngineMount />
       <Toaster />
